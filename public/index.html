@@ -81,16 +81,16 @@
             app.renderer.resize(800 * ratio, 600 * ratio);
             
             if(reelContainer) {
-                // Centraliza tudo
                 const totalWidth = REEL_WIDTH * 3;
+                const totalHeight = SYMBOL_SIZE * 3;
                 reelContainer.x = (app.screen.width - (totalWidth * ratio)) / 2;
-                reelContainer.y = (app.screen.height - (450 * ratio)) / 2; // Centraliza verticalmente aprox
+                reelContainer.y = (app.screen.height - (totalHeight * ratio)) / 2; 
             }
         }
         window.addEventListener('resize', resize);
 
         const REEL_WIDTH = 200;
-        const SYMBOL_SIZE = 160; // Aumentei um pouco para dar respiro
+        const SYMBOL_SIZE = 160; 
         const reels = [];
         const reelContainer = new PIXI.Container();
         
@@ -110,14 +110,16 @@
                 background.alpha = 0.4;
                 app.stage.addChild(background);
 
-                // --- NOVIDADE: FUNDO ESCURO DOS ROLOS ---
-                // Cria um retângulo preto atrás dos slots para destacar os ícones
+                // Fundo Preto dos Rolos
                 const slotBackground = new PIXI.Graphics();
-                slotBackground.beginFill(0x000000, 0.5); // Preto 50% transparente
-                slotBackground.drawRect(0, 0, REEL_WIDTH * 3, SYMBOL_SIZE * 3); // Tamanho da área de jogo (3x3)
+                slotBackground.beginFill(0x000000, 0.6);
+                slotBackground.drawRect(0, 0, REEL_WIDTH * 3, SYMBOL_SIZE * 3);
                 slotBackground.endFill();
                 
-                // Adicionamos esse fundo DENTRO do container, mas antes dos rolos
+                // Borda Dourada (Para debug e estética)
+                slotBackground.lineStyle(4, 0xFFD700, 1); // Dourado
+                slotBackground.drawRect(0, 0, REEL_WIDTH * 3, SYMBOL_SIZE * 3);
+
                 reelContainer.addChild(slotBackground);
                 app.stage.addChild(reelContainer);
 
@@ -138,16 +140,14 @@
         }
 
         function createMachine() {
-            // --- NOVIDADE: A MÁSCARA (MASK) ---
-            // Isso cria uma "janela". Tudo que sair desse retângulo fica invisível.
+            // A MÁSCARA (Janela de Recorte)
             const mask = new PIXI.Graphics();
             mask.beginFill(0xffffff);
-            mask.drawRect(0, 0, REEL_WIDTH * 3, SYMBOL_SIZE * 3); // Janela de 3 colunas x 3 linhas
+            mask.drawRect(0, 0, REEL_WIDTH * 3, SYMBOL_SIZE * 3);
             mask.endFill();
             
             reelContainer.mask = mask;
-            reelContainer.addChild(mask); // Adiciona a máscara ao container
-            // ----------------------------------
+            reelContainer.addChild(mask);
 
             for (let i = 0; i < 3; i++) {
                 const reelColumn = new PIXI.Container();
@@ -164,18 +164,21 @@
                 reel.blur.blurY = 0;
                 reelColumn.filters = [reel.blur];
 
-                // Criamos 4 símbolos (1 extra para garantir que o loop fique suave)
                 for (let j = 0; j < 4; j++) {
                     const texture = slotTextures[Math.floor(Math.random() * slotTextures.length)];
                     const symbol = new PIXI.Sprite(texture);
                     
-                    symbol.y = j * SYMBOL_SIZE;
-                    symbol.anchor.set(0.5);
+                    // --- CORREÇÃO MATEMÁTICA AQUI ---
+                    // Antes: symbol.y = j * SYMBOL_SIZE; (O topo ficava cortado)
+                    // Agora: Somamos metade do tamanho (+ SYMBOL_SIZE / 2)
+                    symbol.y = (j * SYMBOL_SIZE) + (SYMBOL_SIZE / 2);
+                    
+                    symbol.anchor.set(0.5); // Centro da imagem
                     symbol.x = REEL_WIDTH / 2;
 
-                    // Ajuste de Escala (Mantém o ícone dentro do quadrado)
-                    const scaleX = (SYMBOL_SIZE * 0.7) / symbol.width; // 0.7 para dar margem
-                    const scaleY = (SYMBOL_SIZE * 0.7) / symbol.height;
+                    // Ajuste de Escala (Margem de segurança de 20%)
+                    const scaleX = (SYMBOL_SIZE * 0.8) / symbol.width; 
+                    const scaleY = (SYMBOL_SIZE * 0.8) / symbol.height;
                     const finalScale = Math.min(scaleX, scaleY); 
                     symbol.scale.set(finalScale);
 
@@ -212,24 +215,22 @@
                         const textureName = data.reels[index] + ".png"; 
                         const newTexture = PIXI.Assets.cache.get('assets/samurai.json').textures[textureName];
 
-                        // A lógica aqui muda o símbolo do MEIO (índice 1) que é onde o jogador olha
                         const targetSymbol = reel.symbols[1];
                         targetSymbol.texture = newTexture;
                         
                         // Reaplica escala na nova textura
                         targetSymbol.scale.set(1);
-                        const scaleX = (SYMBOL_SIZE * 0.7) / targetSymbol.width;
-                        const scaleY = (SYMBOL_SIZE * 0.7) / targetSymbol.height;
+                        const scaleX = (SYMBOL_SIZE * 0.8) / targetSymbol.width;
+                        const scaleY = (SYMBOL_SIZE * 0.8) / targetSymbol.height;
                         targetSymbol.scale.set(Math.min(scaleX, scaleY));
 
-                        // Embaralha os outros
+                        // Embaralha
                         reel.symbols[0].texture = slotTextures[Math.floor(Math.random() * slotTextures.length)];
                         reel.symbols[2].texture = slotTextures[Math.floor(Math.random() * slotTextures.length)];
-                        // Reaplica escala nos outros também (por segurança)
                         [reel.symbols[0], reel.symbols[2]].forEach(s => {
                             s.scale.set(1);
-                            const sx = (SYMBOL_SIZE * 0.7) / s.width;
-                            const sy = (SYMBOL_SIZE * 0.7) / s.height;
+                            const sx = (SYMBOL_SIZE * 0.8) / s.width;
+                            const sy = (SYMBOL_SIZE * 0.8) / s.height;
                             s.scale.set(Math.min(sx, sy));
                         });
 
