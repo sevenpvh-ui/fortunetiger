@@ -1,7 +1,7 @@
 {
-  "name": "fortune-tiger-clone",
+  "name": "cyber-samurai-slot",
   "version": "1.0.0",
-  "description": "Clone simples do jogo do tigre",
+  "description": "Slot Machine Profissional com PixiJS",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
