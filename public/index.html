@@ -14,11 +14,10 @@
             align-items: center; 
             height: 100vh; 
             width: 100vw;
-            overflow: hidden; /* Evita barras de rolagem */
+            overflow: hidden;
             font-family: 'Courier New', monospace; 
         }
         
-        /* Camada da Interface (Botões e Textos) */
         #ui-layer {
             position: absolute;
             bottom: 30px;
@@ -51,10 +50,11 @@
             font-size: 24px; 
             margin-bottom: 20px; 
             text-shadow: 0 0 10px #00ffcc; 
-            background-color: rgba(0,0,0,0.7);
+            background-color: rgba(0,0,0,0.8);
             display: inline-block;
             padding: 10px 20px;
             border-radius: 10px;
+            border: 1px solid #00ffcc;
         }
     </style>
 </head>
@@ -67,7 +67,6 @@
     </div>
 
     <script>
-        // --- CONFIGURAÇÃO DO PIXIJS ---
         const app = new PIXI.Application({
             width: 800,
             height: 600,
@@ -76,54 +75,52 @@
         });
         document.body.appendChild(app.view);
 
-        // --- SISTEMA DE REDIMENSIONAMENTO (RESPONSIVO) ---
         function resize() {
             const ratio = Math.min(window.innerWidth / 800, window.innerHeight / 600);
             app.stage.scale.set(ratio);
             app.renderer.resize(800 * ratio, 600 * ratio);
             
-            // Centraliza o container principal na tela
             if(reelContainer) {
-                reelContainer.x = (app.screen.width - (REEL_WIDTH * 3 * ratio)) / 2;
-                // Centraliza verticalmente se sobrar espaço
-                const availableHeight = app.screen.height;
-                const machineHeight = 600 * ratio; 
-                // Ajuste fino para não ficar colado no topo
-                reelContainer.y = 50 * ratio; 
+                // Centraliza tudo
+                const totalWidth = REEL_WIDTH * 3;
+                reelContainer.x = (app.screen.width - (totalWidth * ratio)) / 2;
+                reelContainer.y = (app.screen.height - (450 * ratio)) / 2; // Centraliza verticalmente aprox
             }
         }
         window.addEventListener('resize', resize);
 
-        // Variáveis Globais
         const REEL_WIDTH = 200;
-        const SYMBOL_SIZE = 150; // Tamanho ideal do ícone
+        const SYMBOL_SIZE = 160; // Aumentei um pouco para dar respiro
         const reels = [];
         const reelContainer = new PIXI.Container();
         
         let slotTextures = [];
 
-        // --- 1. CARREGAMENTO DOS ASSETS ---
         async function init() {
             try {
-                // Carrega assets (TexturePacker + Fundo)
-                // Se der erro aqui, verifique se os nomes dos arquivos estão certos na pasta assets
                 const texturePromise = PIXI.Assets.load('assets/samurai.json');
                 const bgPromise = PIXI.Assets.load('assets/background.png');
                 
                 const [sheet, bgTexture] = await Promise.all([texturePromise, bgPromise]);
 
-                // Configura o Fundo (Background)
+                // Fundo da Cidade
                 const background = new PIXI.Sprite(bgTexture);
                 background.width = 800;
                 background.height = 600;
-                background.alpha = 0.5; // Escurece o fundo
+                background.alpha = 0.4;
                 app.stage.addChild(background);
 
-                // Adiciona a máquina na frente do fundo
+                // --- NOVIDADE: FUNDO ESCURO DOS ROLOS ---
+                // Cria um retângulo preto atrás dos slots para destacar os ícones
+                const slotBackground = new PIXI.Graphics();
+                slotBackground.beginFill(0x000000, 0.5); // Preto 50% transparente
+                slotBackground.drawRect(0, 0, REEL_WIDTH * 3, SYMBOL_SIZE * 3); // Tamanho da área de jogo (3x3)
+                slotBackground.endFill();
+                
+                // Adicionamos esse fundo DENTRO do container, mas antes dos rolos
+                reelContainer.addChild(slotBackground);
                 app.stage.addChild(reelContainer);
 
-                // Carrega as texturas dos ícones
-                // IMPORTANTE: Os nomes aqui devem bater com os nomes dentro do TexturePacker
                 slotTextures = [
                     sheet.textures['samurai.png'], 
                     sheet.textures['robo.png'],
@@ -133,18 +130,24 @@
                 ];
 
                 createMachine();
-                resize(); // Ajusta o tamanho da tela na primeira vez
+                resize(); 
             } catch (error) {
-                console.error("ERRO CRÍTICO:", error);
-                document.getElementById('msg').innerText = "ERRO: Verifique o console (F12)";
-                document.getElementById('msg').style.color = "red";
+                console.error("ERRO:", error);
+                document.getElementById('msg').innerText = "ERRO: Verifique assets!";
             }
         }
 
-        // --- 2. CRIAÇÃO DA MÁQUINA (COM CORREÇÃO DE TAMANHO) ---
         function createMachine() {
-            reelContainer.y = 50;
-            reelContainer.x = (800 - (REEL_WIDTH * 3)) / 2; 
+            // --- NOVIDADE: A MÁSCARA (MASK) ---
+            // Isso cria uma "janela". Tudo que sair desse retângulo fica invisível.
+            const mask = new PIXI.Graphics();
+            mask.beginFill(0xffffff);
+            mask.drawRect(0, 0, REEL_WIDTH * 3, SYMBOL_SIZE * 3); // Janela de 3 colunas x 3 linhas
+            mask.endFill();
+            
+            reelContainer.mask = mask;
+            reelContainer.addChild(mask); // Adiciona a máscara ao container
+            // ----------------------------------
 
             for (let i = 0; i < 3; i++) {
                 const reelColumn = new PIXI.Container();
@@ -161,22 +164,20 @@
                 reel.blur.blurY = 0;
                 reelColumn.filters = [reel.blur];
 
-                // Cria 4 símbolos iniciais para preencher a coluna
+                // Criamos 4 símbolos (1 extra para garantir que o loop fique suave)
                 for (let j = 0; j < 4; j++) {
                     const texture = slotTextures[Math.floor(Math.random() * slotTextures.length)];
                     const symbol = new PIXI.Sprite(texture);
                     
                     symbol.y = j * SYMBOL_SIZE;
-                    symbol.anchor.set(0.5); // Ponto central da imagem
-                    symbol.x = REEL_WIDTH / 2; // Centraliza na coluna
+                    symbol.anchor.set(0.5);
+                    symbol.x = REEL_WIDTH / 2;
 
-                    // --- A MÁGICA: FORÇA A IMAGEM A FICAR PEQUENA ---
-                    // Isso conserta o bug da "espada gigante"
-                    const scaleX = (SYMBOL_SIZE * 0.8) / symbol.width;
-                    const scaleY = (SYMBOL_SIZE * 0.8) / symbol.height;
-                    const finalScale = Math.min(scaleX, scaleY); // Usa o menor para não distorcer
+                    // Ajuste de Escala (Mantém o ícone dentro do quadrado)
+                    const scaleX = (SYMBOL_SIZE * 0.7) / symbol.width; // 0.7 para dar margem
+                    const scaleY = (SYMBOL_SIZE * 0.7) / symbol.height;
+                    const finalScale = Math.min(scaleX, scaleY); 
                     symbol.scale.set(finalScale);
-                    // ------------------------------------------------
 
                     reelColumn.addChild(symbol);
                     reel.symbols.push(symbol);
@@ -187,7 +188,6 @@
             document.getElementById('spinBtn').addEventListener('click', startSpin);
         }
 
-        // --- 3. LÓGICA DE GIRO ---
         async function startSpin() {
             const btn = document.getElementById('spinBtn');
             const msg = document.getElementById('msg');
@@ -195,48 +195,49 @@
             if (btn.disabled) return;
             
             btn.disabled = true;
-            msg.innerText = "CYBER SPIN...";
+            msg.innerText = "GIRANDO...";
             msg.style.color = "#00ffcc";
 
-            // Ativa o desfoque (Blur) para dar sensação de velocidade
             reels.forEach(r => { r.blur.blurY = 20; });
 
             try {
-                // Chama o Backend
                 const response = await fetch('/spin', { method: 'POST' });
                 const data = await response.json();
 
-                // Função para parar cada rolo
                 const stopReel = (index) => {
                     setTimeout(() => {
                         const reel = reels[index];
-                        reel.blur.blurY = 0; // Remove o borrão
+                        reel.blur.blurY = 0;
 
-                        // Define a imagem final baseada na resposta do servidor
                         const textureName = data.reels[index] + ".png"; 
                         const newTexture = PIXI.Assets.cache.get('assets/samurai.json').textures[textureName];
 
-                        // Atualiza a imagem do meio (a que vale)
+                        // A lógica aqui muda o símbolo do MEIO (índice 1) que é onde o jogador olha
                         const targetSymbol = reel.symbols[1];
                         targetSymbol.texture = newTexture;
                         
-                        // --- REAPLICA A CORREÇÃO DE TAMANHO NA NOVA IMAGEM ---
-                        targetSymbol.scale.set(1); // Reseta escala
-                        const scaleX = (SYMBOL_SIZE * 0.8) / targetSymbol.width;
-                        const scaleY = (SYMBOL_SIZE * 0.8) / targetSymbol.height;
+                        // Reaplica escala na nova textura
+                        targetSymbol.scale.set(1);
+                        const scaleX = (SYMBOL_SIZE * 0.7) / targetSymbol.width;
+                        const scaleY = (SYMBOL_SIZE * 0.7) / targetSymbol.height;
                         targetSymbol.scale.set(Math.min(scaleX, scaleY));
-                        // ----------------------------------------------------
 
-                        // Troca os outros símbolos aleatoriamente
+                        // Embaralha os outros
                         reel.symbols[0].texture = slotTextures[Math.floor(Math.random() * slotTextures.length)];
                         reel.symbols[2].texture = slotTextures[Math.floor(Math.random() * slotTextures.length)];
+                        // Reaplica escala nos outros também (por segurança)
+                        [reel.symbols[0], reel.symbols[2]].forEach(s => {
+                            s.scale.set(1);
+                            const sx = (SYMBOL_SIZE * 0.7) / s.width;
+                            const sy = (SYMBOL_SIZE * 0.7) / s.height;
+                            s.scale.set(Math.min(sx, sy));
+                        });
 
-                        // Efeito visual de "tranco" ao parar
+                        // Efeito de pulo
                         const startY = reel.container.y;
                         reel.container.y = startY + 30;
                         setTimeout(() => { reel.container.y = startY; }, 150);
 
-                        // Se for o último rolo
                         if (index === 2) {
                             btn.disabled = false;
                             if (data.win) {
@@ -257,7 +258,6 @@
             } catch (e) {
                 console.error(e);
                 msg.innerText = "ERRO DE REDE";
-                msg.style.color = "red";
                 btn.disabled = false;
                 reels.forEach(r => { r.blur.blurY = 0; });
             }
